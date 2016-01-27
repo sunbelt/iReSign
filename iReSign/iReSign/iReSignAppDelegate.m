@@ -8,6 +8,7 @@
 //
 
 #import "iReSignAppDelegate.h"
+#import "CertItem.h"
 
 static NSString *kKeyPrefsBundleIDChange            = @"keyBundleIDChange";
 
@@ -473,7 +474,11 @@ static NSString *kiTunesMetadataFileName            = @"iTunesMetadata";
     NSLog(@"Codesigning %@", filePath);
     [statusLabel setStringValue:[NSString stringWithFormat:@"Codesigning %@",filePath]];
     
-    NSMutableArray *arguments = [NSMutableArray arrayWithObjects:@"-fs", [certComboBox objectValue], nil];
+	CertItem *certItem = [certComboBoxItems objectAtIndex:[certComboBox indexOfSelectedItem]];
+
+	//See: https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man1/codesign.1.html
+	//Suppy the sha-1 value instead of the name.
+	NSMutableArray *arguments = [NSMutableArray arrayWithObjects:@"-fs", certItem.sha1, nil];
     NSDictionary *systemVersionDictionary = [NSDictionary dictionaryWithContentsOfFile:@"/System/Library/CoreServices/SystemVersion.plist"];
     NSString * systemVersion = [systemVersionDictionary objectForKey:@"ProductVersion"];
     NSArray * version = [systemVersion componentsSeparatedByString:@"."];
@@ -793,11 +798,22 @@ static NSString *kiTunesMetadataFileName            = @"iTunesMetadata";
                 // Invalid array, don't add an object to that position
             } else {
                 // Valid object
-                [tempGetCertsResult addObject:[rawResult objectAtIndex:i+1]];
+				NSString *name = [rawResult objectAtIndex:i+1];
+				NSString *temp = [rawResult objectAtIndex:i];
+				NSString *sha1 = [temp substringWithRange:NSMakeRange([temp length] - 41, 40)];
+
+				CertItem *certItem = [[CertItem alloc] init];
+				certItem.name = name;
+				certItem.sha1 = sha1;
+
+				[tempGetCertsResult addObject:certItem];
             }
         }
-        
-        certComboBoxItems = [NSMutableArray arrayWithArray:tempGetCertsResult];
+
+		NSSortDescriptor *sort = [NSSortDescriptor sortDescriptorWithKey:@"name" ascending:YES];
+		NSArray *sortedArray = [tempGetCertsResult sortedArrayUsingDescriptors:@[sort]];
+
+		certComboBoxItems = [NSMutableArray arrayWithArray:sortedArray];
         
         [certComboBox reloadData];
         
@@ -817,7 +833,7 @@ static NSString *kiTunesMetadataFileName            = @"iTunesMetadata";
                 
                 NSInteger selectedIndex = [[defaults valueForKey:@"CERT_INDEX"] integerValue];
                 if (selectedIndex != -1) {
-                    NSString *selectedItem = [self comboBox:certComboBox objectValueForItemAtIndex:selectedIndex];
+                     id selectedItem = [self comboBox:certComboBox objectValueForItemAtIndex:selectedIndex];
                     [certComboBox setObjectValue:selectedItem];
                     [certComboBox selectItemAtIndex:selectedIndex];
                 }
